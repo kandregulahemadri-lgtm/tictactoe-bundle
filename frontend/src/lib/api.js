@@ -1,7 +1,21 @@
 import axios from "axios";
 
 const DEFAULT_BACKEND_URL = "https://tictactoe-backend-e8us.onrender.com";
-const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+
+function resolveBackendUrl() {
+  const configuredUrl = process.env.REACT_APP_BACKEND_URL;
+  if (!configuredUrl) return DEFAULT_BACKEND_URL;
+
+  const normalized = configuredUrl.replace(/\/$/, "");
+  const isLocalOrTunnelUrl = /localhost|127\.0\.0\.1|\.loca\.lt|\.ngrok\.io|\.trycloudflare\.com/i.test(normalized);
+  if (isLocalOrTunnelUrl) {
+    return DEFAULT_BACKEND_URL;
+  }
+
+  return normalized;
+}
+
+const BACKEND_URL = resolveBackendUrl();
 export const API_BASE = `${BACKEND_URL}/api`;
 
 const api = axios.create({
