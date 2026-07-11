@@ -54,10 +54,13 @@ let databaseMode = 'postgres';
 
 function createPool() {
   const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL;
+  const sslEnabled = process.env.DATABASE_SSL === 'true' || Boolean(process.env.NEON_DATABASE_URL) || Boolean(process.env.SUPABASE_DB_URL) || Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase'));
+
   if (databaseUrl) {
+    console.log('Database connection source:', process.env.DATABASE_URL ? 'DATABASE_URL' : (process.env.POSTGRES_URL ? 'POSTGRES_URL' : (process.env.NEON_DATABASE_URL ? 'NEON_DATABASE_URL' : 'SUPABASE_DB_URL')));
     return new Pool({
       connectionString: databaseUrl,
-      ssl: process.env.DATABASE_SSL === 'true' || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : undefined,
+      ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
       statement_timeout: 10000,
     });
   }
