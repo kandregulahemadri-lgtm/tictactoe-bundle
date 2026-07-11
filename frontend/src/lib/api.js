@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "http://localhost:8001").replace(/\/$/, "");
+const DEFAULT_BACKEND_URL = "https://tictactoe-backend-e8us.onrender.com";
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || DEFAULT_BACKEND_URL).replace(/\/$/, "");
 export const API_BASE = `${BACKEND_URL}/api`;
 
 const api = axios.create({

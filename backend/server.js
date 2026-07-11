@@ -11,7 +11,8 @@ const { newDb } = require('pg-mem');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-const port = process.env.PORT || 8001;
+const port = Number(process.env.PORT || 8001);
+const host = process.env.HOST || '0.0.0.0';
 const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -27,6 +28,10 @@ const defaultAllowedOrigins = [
   'https://127.0.0.1:5173',
   'https://tictactoe-bundle.vercel.app',
   'https://www.tictactoe-bundle.vercel.app',
+  'https://*.up.railway.app',
+  'https://*.railway.app',
+  'https://*.onrender.com',
+  'https://*.render.com',
 ];
 const configuredOrigins = (process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
@@ -37,6 +42,8 @@ function isAllowedOrigin(origin) {
   return /https:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(origin)
     || /https:\/\/([a-z0-9-]+\.)*railway\.app$/i.test(origin)
     || /https:\/\/([a-z0-9-]+\.)*netlify\.app$/i.test(origin)
+    || /https:\/\/([a-z0-9-]+\.)*onrender\.com$/i.test(origin)
+    || /https:\/\/([a-z0-9-]+\.)*render\.com$/i.test(origin)
     || /https?:\/\/localhost(:\d+)?$/i.test(origin)
     || /https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin);
 }
@@ -134,17 +141,18 @@ async function initDb() {
 }
 
 function setAuthCookies(res, accessToken, refreshToken) {
+  const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('access_token', accessToken, {
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: ACCESS_TTL_SECONDS * 1000,
     path: '/',
   });
   res.cookie('refresh_token', refreshToken, {
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: REFRESH_TTL_SECONDS * 1000,
     path: '/',
   });
@@ -349,7 +357,7 @@ app.get('/api/stats', async (req, res) => {
 
 (async () => {
   await initDb();
-  app.listen(port, () => {
-    console.log(`Backend running on http://localhost:${port}`);
+  app.listen(port, host, () => {
+    console.log(`Backend running on http://${host}:${port}`);
   });
 })();
