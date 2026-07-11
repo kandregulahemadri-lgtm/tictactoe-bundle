@@ -346,8 +346,16 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-function startServer() {
-  const server = app.listen(port, host, () => {
+async function startServer({ initDbFn = initDb, listenFn = app.listen.bind(app) } = {}) {
+  try {
+    await initDbFn();
+    console.log('Database initialization complete');
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    throw error;
+  }
+
+  const server = listenFn(port, host, () => {
     console.log(`Backend running on http://${host}:${port}`);
   });
 
@@ -356,13 +364,22 @@ function startServer() {
     process.exit(1);
   });
 
-  initDb()
-    .then(() => {
-      console.log('Database initialization complete');
-    })
-    .catch((error) => {
-      console.error('Database initialization failed:', error);
-    });
+  return server;
 }
 
-startServer();
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error('Failed to start backend server:', error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  app,
+  startServer,
+  initDb,
+  createPool,
+  setAuthCookies,
+  clearAuthCookies,
+  getCurrentUser,
+};
