@@ -11,8 +11,9 @@ const { newDb } = require('pg-mem');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-const port = Number(process.env.PORT || 8001);
-const host = process.env.HOST || '0.0.0.0';
+const parsedPort = Number.parseInt(process.env.PORT || '8001', 10);
+const port = Number.isNaN(parsedPort) ? 8001 : parsedPort;
+const host = process.env.RENDER ? '0.0.0.0' : (process.env.HOST || '127.0.0.1');
 const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -355,9 +356,23 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-(async () => {
-  await initDb();
-  app.listen(port, host, () => {
+function startServer() {
+  const server = app.listen(port, host, () => {
     console.log(`Backend running on http://${host}:${port}`);
   });
-})();
+
+  server.on('error', (error) => {
+    console.error('Failed to start backend server:', error);
+    process.exit(1);
+  });
+
+  initDb()
+    .then(() => {
+      console.log('Database initialization complete');
+    })
+    .catch((error) => {
+      console.error('Database initialization failed:', error);
+    });
+}
+
+startServer();
