@@ -12,7 +12,34 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const port = process.env.PORT || 8001;
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173').split(',').map((origin) => origin.trim()).filter(Boolean);
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://localhost:3000',
+  'https://127.0.0.1:3000',
+  'https://localhost:3001',
+  'https://127.0.0.1:3001',
+  'https://localhost:5173',
+  'https://127.0.0.1:5173',
+  'https://tictactoe-bundle.vercel.app',
+  'https://www.tictactoe-bundle.vercel.app',
+];
+const configuredOrigins = (process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  return /https:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(origin)
+    || /https:\/\/([a-z0-9-]+\.)*railway\.app$/i.test(origin)
+    || /https:\/\/([a-z0-9-]+\.)*netlify\.app$/i.test(origin)
+    || /https?:\/\/localhost(:\d+)?$/i.test(origin)
+    || /https?:\/\/127\.0\.0\.1(:\d+)?$/i.test(origin);
+}
 
 let pool;
 let databaseMode = 'postgres';
@@ -36,7 +63,7 @@ pool = createPool();
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);
       return;
     }
@@ -44,7 +71,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 app.use(express.json());
 app.use(cookieParser());
