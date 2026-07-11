@@ -58,6 +58,7 @@ function createPool() {
     return new Pool({
       connectionString: databaseUrl,
       ssl: process.env.DATABASE_SSL === 'true' || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : undefined,
+      statement_timeout: 10000,
     });
   }
 
@@ -204,8 +205,8 @@ app.post('/api/auth/register', async (req, res) => {
     if (error.code === '23505') {
       return res.status(400).json({ detail: 'Email already registered' });
     }
-    console.error(error);
-    return res.status(500).json({ detail: 'Something went wrong. Please try again later.' });
+    console.error('REGISTER_ERROR', error);
+    return res.status(500).json({ detail: error.message || 'Something went wrong. Please try again later.' });
   }
 });
 
