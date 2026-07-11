@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run start",
-    "dev:backend": "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8001 --reload"
+    "dev:backend": "cd backend && npm run dev",
+    "start": "npm --prefix backend run start",
+    "build:backend": "cd backend && npm install"
   }
 }
