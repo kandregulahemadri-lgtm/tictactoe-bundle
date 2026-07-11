@@ -53,18 +53,16 @@ let pool;
 let databaseMode = 'postgres';
 
 function createPool() {
-  if (process.env.DATABASE_URL) {
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL;
+  if (databaseUrl) {
     return new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+      connectionString: databaseUrl,
+      ssl: process.env.DATABASE_SSL === 'true' || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL ? { rejectUnauthorized: false } : undefined,
     });
   }
 
-  console.log('DATABASE_URL not set; using in-memory dev database');
-  databaseMode = 'memory';
-  const db = newDb();
-  const pg = db.adapters.createPg();
-  return new pg.Pool();
+  console.error('No PostgreSQL connection string found. Set DATABASE_URL, POSTGRES_URL, NEON_DATABASE_URL, or SUPABASE_DB_URL.');
+  throw new Error('Database connection string is required');
 }
 
 pool = createPool();
@@ -89,22 +87,14 @@ const ACCESS_TTL_SECONDS = 60 * 60 * 24;
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 async function waitForDatabase(maxAttempts = 10, delayMs = 1000) {
-  if (databaseMode === 'memory') {
-    return;
-  }
-
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       await pool.query('SELECT NOW()');
       return;
     } catch (error) {
       if (attempt === maxAttempts) {
-        console.warn('PostgreSQL not reachable; falling back to the in-memory database for local development.');
-        databaseMode = 'memory';
-        const db = newDb();
-        const pg = db.adapters.createPg();
-        pool = new pg.Pool();
-        return;
+        console.error('PostgreSQL not reachable. Check your DATABASE_URL / Neon / Supabase connection settings.');
+        throw error;
       }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
