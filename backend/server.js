@@ -286,7 +286,7 @@ app.post('/api/auth/register', async (req, res) => {
     const refreshToken = createToken(user.id, { type: 'refresh' });
     setAuthCookies(req, res, accessToken, refreshToken);
 
-    return res.json(userPublicRow(user));
+    return res.json(userPublicRow(user, accessToken));
   } catch (error) {
     if (error.code === '23505') {
       return res.status(400).json({ detail: 'Email already registered' });
@@ -329,7 +329,7 @@ app.post('/api/auth/login', async (req, res) => {
     const refreshToken = createToken(user.id, { type: 'refresh' });
     setAuthCookies(req, res, accessToken, refreshToken);
 
-    return res.json(userPublicRow(user));
+    return res.json(userPublicRow(user, accessToken));
   } catch (error) {
     console.error(error);
     return res.status(500).json({ detail: 'Something went wrong. Please try again later.' });
