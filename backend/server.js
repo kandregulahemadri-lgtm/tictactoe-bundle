@@ -235,18 +235,28 @@ function createToken(sub, extra = {}) {
   return jwt.sign({ sub, ...extra }, JWT_SECRET, { expiresIn: '24h' });
 }
 
-function userPublicRow(user) {
-  return {
+function getAccessToken(req) {
+  return req.cookies?.access_token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+}
+
+function userPublicRow(user, accessToken = null) {
+  const row = {
     id: user.id,
     email: user.email,
     name: user.name,
     avatar: user.avatar,
     created_at: user.created_at,
   };
+
+  if (accessToken) {
+    row.access_token = accessToken;
+  }
+
+  return row;
 }
 
 async function getCurrentUser(req) {
-  const accessToken = req.cookies?.access_token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  const accessToken = getAccessToken(req);
   if (!accessToken) throw new Error('Not authenticated');
 
   const payload = jwt.verify(accessToken, JWT_SECRET);
@@ -334,7 +344,7 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', async (req, res) => {
   try {
     const user = await getCurrentUser(req);
-    return res.json(userPublicRow(user));
+    return res.json(userPublicRow(user, getAccessToken(req)));
   } catch (error) {
     if (error.message === 'Not authenticated' || error.message === 'User not found') {
       return res.status(401).json({ detail: error.message });
@@ -354,7 +364,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     const payload = jwt.verify(refreshToken, JWT_SECRET);
     const accessToken = createToken(payload.sub, { type: 'access' });
     setAuthCookies(req, res, accessToken, refreshToken);
-    return res.json({ ok: true });
+    return res.json({ ok: true, access_token: accessToken });
   } catch (error) {
     return res.status(401).json({ detail: 'Invalid refresh token' });
   }
@@ -382,7 +392,7 @@ app.patch('/api/auth/profile', async (req, res) => {
     }
 
     const refreshed = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
-    return res.json(userPublicRow(refreshed.rows[0]));
+    return res.json(userPublicRow(refreshed.rows[0], getAccessToken(req)));
   } catch (error) {
     console.error(error);
     return res.status(500).json({ detail: 'Something went wrong. Please try again later.' });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import api from "@/lib/api";
+import api, { clearStoredAccessToken, setStoredAccessToken } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
@@ -11,8 +11,11 @@ export function AuthProvider({ children }) {
   const fetchMe = useCallback(async () => {
     const fetchCurrentUser = async () => {
       const { data } = await api.get("/auth/me");
-      setUser(data);
-      return data;
+      const accessToken = data?.access_token;
+      if (accessToken) setStoredAccessToken(accessToken);
+      const userData = accessToken ? Object.fromEntries(Object.entries(data).filter(([k]) => k !== "access_token")) : data;
+      setUser(userData);
+      return userData;
     };
 
     try {
@@ -22,7 +25,8 @@ export function AuthProvider({ children }) {
     } catch (error) {
       if (error?.response?.status === 401) {
         try {
-          await api.post("/auth/refresh");
+          const { data } = await api.post("/auth/refresh");
+          if (data?.access_token) setStoredAccessToken(data.access_token);
           const refreshedUser = await fetchCurrentUser();
           setAuthAttempted(true);
           return refreshedUser;
@@ -31,6 +35,7 @@ export function AuthProvider({ children }) {
         }
       }
       setAuthAttempted(true);
+      clearStoredAccessToken();
       setUser(false);
       return false;
     }
@@ -43,9 +48,13 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     try {
       const { data } = await api.post("/auth/login", { email, password });
-      setUser(data);
-      return data;
+      const accessToken = data?.access_token;
+      if (accessToken) setStoredAccessToken(accessToken);
+      const userData = accessToken ? Object.fromEntries(Object.entries(data).filter(([k]) => k !== "access_token")) : data;
+      setUser(userData);
+      return userData;
     } catch (error) {
+      clearStoredAccessToken();
       setUser(false);
       throw error;
     }
@@ -53,15 +62,20 @@ export function AuthProvider({ children }) {
   const register = async (payload) => {
     try {
       const { data } = await api.post("/auth/register", payload);
-      setUser(data);
-      return data;
+      const accessToken = data?.access_token;
+      if (accessToken) setStoredAccessToken(accessToken);
+      const userData = accessToken ? Object.fromEntries(Object.entries(data).filter(([k]) => k !== "access_token")) : data;
+      setUser(userData);
+      return userData;
     } catch (error) {
+      clearStoredAccessToken();
       setUser(false);
       throw error;
     }
   };
   const logout = async () => {
     try { await api.post("/auth/logout"); } catch (_) {}
+    clearStoredAccessToken();
     setUser(false);
   };
   const updateProfile = async (payload) => {
