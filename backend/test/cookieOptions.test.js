@@ -33,3 +33,20 @@ test('keeps localhost cookies less strict', () => {
     path: '/',
   });
 });
+
+test('uses cross-site cookie settings for browser requests that come from a public frontend origin', () => {
+  const req = {
+    headers: {
+      origin: 'https://tictactoe-bundle.vercel.app',
+      'sec-fetch-site': 'cross-site',
+    },
+    secure: false,
+  };
+
+  assert.deepStrictEqual(getCookieOptions(req), {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+  });
+});
