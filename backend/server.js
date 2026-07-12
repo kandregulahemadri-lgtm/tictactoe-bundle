@@ -120,6 +120,15 @@ async function initDb() {
   `);
 
   await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS email TEXT,
+      ADD COLUMN IF NOT EXISTS password_hash TEXT,
+      ADD COLUMN IF NOT EXISTS name TEXT,
+      ADD COLUMN IF NOT EXISTS avatar TEXT,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS matches (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -132,6 +141,19 @@ async function initDb() {
       duration_seconds INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE matches
+      ADD COLUMN IF NOT EXISTS user_id INTEGER,
+      ADD COLUMN IF NOT EXISTS player_x_name TEXT,
+      ADD COLUMN IF NOT EXISTS player_x_avatar TEXT,
+      ADD COLUMN IF NOT EXISTS player_o_name TEXT,
+      ADD COLUMN IF NOT EXISTS player_o_avatar TEXT,
+      ADD COLUMN IF NOT EXISTS winner TEXT,
+      ADD COLUMN IF NOT EXISTS moves INTEGER,
+      ADD COLUMN IF NOT EXISTS duration_seconds INTEGER,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP;
   `);
 }
 
@@ -208,7 +230,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (error.code === '23505') {
       return res.status(400).json({ detail: 'Email already registered' });
     }
-    console.error('REGISTER_ERROR', error);
+    console.error('REGISTER_ERROR', error.stack || error);
     return res.status(500).json({ detail: error.message || 'Something went wrong. Please try again later.' });
   }
 });
