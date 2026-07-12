@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const dotenv = require('dotenv');
 const path = require('path');
 const { newDb } = require('pg-mem');
+const { getCookieOptions } = require('./cookieOptions');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -208,12 +209,10 @@ async function initDb() {
   `);
 }
 
-function setAuthCookies(res, accessToken, refreshToken) {
+function setAuthCookies(req, res, accessToken, refreshToken) {
   const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-    path: '/',
+    ...getCookieOptions(req),
+    maxAge: ACCESS_TTL_SECONDS * 1000,
   };
 
   res.cookie('access_token', accessToken, {
@@ -274,7 +273,7 @@ app.post('/api/auth/register', async (req, res) => {
     const user = result.rows[0];
     const accessToken = createToken(user.id, { type: 'access' });
     const refreshToken = createToken(user.id, { type: 'refresh' });
-    setAuthCookies(res, accessToken, refreshToken);
+    setAuthCookies(req, res, accessToken, refreshToken);
 
     return res.json(userPublicRow(user));
   } catch (error) {
@@ -317,7 +316,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const accessToken = createToken(user.id, { type: 'access' });
     const refreshToken = createToken(user.id, { type: 'refresh' });
-    setAuthCookies(res, accessToken, refreshToken);
+    setAuthCookies(req, res, accessToken, refreshToken);
 
     return res.json(userPublicRow(user));
   } catch (error) {
@@ -353,7 +352,7 @@ app.post('/api/auth/refresh', async (req, res) => {
 
     const payload = jwt.verify(refreshToken, JWT_SECRET);
     const accessToken = createToken(payload.sub, { type: 'access' });
-    setAuthCookies(res, accessToken, refreshToken);
+    setAuthCookies(req, res, accessToken, refreshToken);
     return res.json({ ok: true });
   } catch (error) {
     return res.status(401).json({ detail: 'Invalid refresh token' });
