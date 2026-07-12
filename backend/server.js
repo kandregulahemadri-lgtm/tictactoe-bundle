@@ -230,8 +230,17 @@ app.post('/api/auth/register', async (req, res) => {
     if (error.code === '23505') {
       return res.status(400).json({ detail: 'Email already registered' });
     }
-    console.error('REGISTER_ERROR', error.stack || error);
-    return res.status(500).json({ detail: error.message || 'Something went wrong. Please try again later.' });
+    console.error('REGISTER_ERROR', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      detail: error.message || 'Something went wrong. Please try again later.',
+      code: error.code,
+      dbDetail: error.detail,
+    });
   }
 });
 
