@@ -14,6 +14,7 @@ const app = express();
 const parsedPort = Number.parseInt(process.env.PORT || '8001', 10);
 const port = Number.isNaN(parsedPort) ? 8001 : parsedPort;
 const host = process.env.RENDER ? '0.0.0.0' : (process.env.HOST || '127.0.0.1');
+const buildVersion = process.env.BUILD_VERSION || 'local-dev';
 const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -204,7 +205,7 @@ async function getCurrentUser(req) {
   return rows[0];
 }
 
-app.get('/health', (_, res) => res.json({ ok: true, database: databaseMode }));
+app.get('/health', (_, res) => res.json({ ok: true, database: databaseMode, build: buildVersion }));
 
 app.post('/api/auth/register', async (req, res) => {
   try {
