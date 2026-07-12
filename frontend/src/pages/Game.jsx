@@ -66,12 +66,27 @@ export default function Game() {
   const [session, setSession] = useState({ X: 0, O: 0, DRAW: 0 });
   const [result, setResult] = useState(null); // { winner, line }
   const [savedThisRound, setSavedThisRound] = useState(false);
+  const [pendingMatchPayload, setPendingMatchPayload] = useState(null);
   const startTsRef = useRef(Date.now());
   const movesRef = useRef(0);
 
+  useEffect(() => {
+    if (!pendingMatchPayload || !user || user === false || savedThisRound) return;
+
+    const payload = pendingMatchPayload;
+    setPendingMatchPayload(null);
+
+    api.post("/matches", payload)
+      .then(() => setSavedThisRound(true))
+      .catch((error) => {
+        console.error("Failed to save match history", error);
+        setPendingMatchPayload(payload);
+      });
+  }, [pendingMatchPayload, user, savedThisRound]);
+
   if (!setup) return null;
   const players = { X: setup.x, O: setup.o };
-  const isGuest = !user || setup.guest;
+  const isGuest = setup.guest || user === false || user === null;
 
   const place = (i) => {
     if (cells[i] || result) return;
@@ -91,9 +106,9 @@ export default function Game() {
         haptic([10, 40, 20]);
         setSession((s) => ({ ...s, [r.winner]: s[r.winner] + 1 }));
       }
-      if (!isGuest) {
+      if (!isGuest && user) {
         const duration = Math.max(1, Math.round((Date.now() - startTsRef.current) / 1000));
-        api.post("/matches", {
+        setPendingMatchPayload({
           player_x_name: players.X.name,
           player_x_avatar: players.X.avatar,
           player_o_name: players.O.name,
@@ -101,8 +116,7 @@ export default function Game() {
           winner: r.winner,
           moves: movesRef.current,
           duration_seconds: duration,
-        }).then(() => setSavedThisRound(true))
-          .catch(() => {});
+        });
       }
     } else {
       setTurn(turn === "X" ? "O" : "X");
@@ -117,6 +131,7 @@ export default function Game() {
     setTurn(nextStarter || "X");
     setResult(null);
     setSavedThisRound(false);
+    setPendingMatchPayload(null);
     startTsRef.current = Date.now();
     movesRef.current = 0;
   };

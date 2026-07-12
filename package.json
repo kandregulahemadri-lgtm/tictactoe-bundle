@@ -6,5 +6,7 @@
     "dev:backend": "cd backend && npm run dev",
     "start": "npm --prefix backend run start",
     "build:backend": "cd backend && npm install"
+  },
+  "dependencies": {
   }
 }
