@@ -225,9 +225,10 @@ function setAuthCookies(req, res, accessToken, refreshToken) {
   });
 }
 
-function clearAuthCookies(res) {
-  res.clearCookie('access_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/' });
+function clearAuthCookies(req, res) {
+  const cookieOptions = getCookieOptions(req);
+  res.clearCookie('access_token', { ...cookieOptions, path: '/' });
+  res.clearCookie('refresh_token', { ...cookieOptions, path: '/' });
 }
 
 function createToken(sub, extra = {}) {
@@ -325,8 +326,8 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/logout', (_, res) => {
-  clearAuthCookies(res);
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookies(req, res);
   return res.json({ ok: true });
 });
 
