@@ -13,7 +13,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 const parsedPort = Number.parseInt(process.env.PORT || '8001', 10);
 const port = Number.isNaN(parsedPort) ? 8001 : parsedPort;
-const host = process.env.RENDER ? '0.0.0.0' : (process.env.HOST || '127.0.0.1');
+const host = process.env.HOST || '0.0.0.0';
 const buildVersion = process.env.BUILD_VERSION || 'local-dev';
 const defaultAllowedOrigins = [
   'http://localhost:3000',
@@ -53,12 +53,55 @@ function isAllowedOrigin(origin) {
 let pool;
 let databaseMode = 'postgres';
 
+function isLocalDatabaseUrl(url) {
+  return /^(postgres|postgresql):\/\/(?:[^@]*@)?(?:localhost|127\.0\.0\.1|::1)(?::\d+)?\//i.test(url);
+}
+
+function shouldUseSsl(databaseUrl) {
+  if (process.env.DATABASE_SSL === 'true') return true;
+  if (process.env.DATABASE_SSL === 'false') return false;
+  if (!databaseUrl) return false;
+  if (/sslmode=(require|verify-full|allow|prefer|true)/i.test(databaseUrl)) return true;
+  if (/ssl=true/i.test(databaseUrl)) return true;
+  if (process.env.NODE_ENV === 'production' && !isLocalDatabaseUrl(databaseUrl)) return true;
+  return false;
+}
+
+function getDatabaseUrl() {
+  const databaseUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL;
+
+  const databaseSource = process.env.DATABASE_URL
+    ? 'DATABASE_URL'
+    : process.env.POSTGRES_URL
+    ? 'POSTGRES_URL'
+    : undefined;
+
+  let databaseHost;
+  if (databaseUrl) {
+    try {
+      databaseHost = new URL(databaseUrl).hostname;
+    } catch (error) {
+      console.warn('Unable to parse database URL host from', databaseSource);
+    }
+  }
+
+  return { databaseUrl, databaseSource, databaseHost };
+}
+
 function createPool() {
-  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_DATABASE_URL || process.env.SUPABASE_DB_URL;
-  const sslEnabled = process.env.DATABASE_SSL === 'true' || Boolean(process.env.NEON_DATABASE_URL) || Boolean(process.env.SUPABASE_DB_URL) || Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase'));
+  const { databaseUrl, databaseSource, databaseHost } = getDatabaseUrl();
 
   if (databaseUrl) {
-    console.log('Database connection source:', process.env.DATABASE_URL ? 'DATABASE_URL' : (process.env.POSTGRES_URL ? 'POSTGRES_URL' : (process.env.NEON_DATABASE_URL ? 'NEON_DATABASE_URL' : 'SUPABASE_DB_URL')));
+    if (databaseHost === 'base') {
+      console.error('Invalid database host detected in', databaseSource, ':', databaseHost);
+      console.error('Check your Render environment variable for DATABASE_URL or other DB connection values.');
+    }
+    const sslEnabled = shouldUseSsl(databaseUrl);
+    console.log('Database connection source:', databaseSource);
+    if (databaseHost) console.log('Database host:', databaseHost);
+    console.log('Database SSL enabled:', sslEnabled);
     return new Pool({
       connectionString: databaseUrl,
       ssl: sslEnabled ? { rejectUnauthorized: false } : undefined,
@@ -66,7 +109,9 @@ function createPool() {
     });
   }
 
-  console.error('No PostgreSQL connection string found. Set DATABASE_URL, POSTGRES_URL, NEON_DATABASE_URL, or SUPABASE_DB_URL.');
+  console.error(
+    'No PostgreSQL connection string found. Set DATABASE_URL or POSTGRES_URL.'
+  );
   throw new Error('Database connection string is required');
 }
 
@@ -90,6 +135,11 @@ app.use(cookieParser());
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const ACCESS_TTL_SECONDS = 60 * 60 * 24;
 const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
+const isRender = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_REGION);
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.NOW_REGION);
+const isProduction = process.env.NODE_ENV === 'production' || isRender || isVercel || Boolean(process.env.CF_PAGES || process.env.NETLIFY);
+
+app.set('trust proxy', true);
 
 async function waitForDatabase(maxAttempts = 10, delayMs = 1000) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -159,20 +209,20 @@ async function initDb() {
 }
 
 function setAuthCookies(res, accessToken, refreshToken) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  res.cookie('access_token', accessToken, {
+  const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
-    maxAge: ACCESS_TTL_SECONDS * 1000,
     path: '/',
+  };
+
+  res.cookie('access_token', accessToken, {
+    ...cookieOptions,
+    maxAge: ACCESS_TTL_SECONDS * 1000,
   });
   res.cookie('refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    ...cookieOptions,
     maxAge: REFRESH_TTL_SECONDS * 1000,
-    path: '/',
   });
 }
 
@@ -349,7 +399,10 @@ app.post('/api/matches', async (req, res) => {
     );
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    console.error('MATCH_SAVE_ERROR', error?.message || error);
+    if (error?.message === 'Not authenticated' || error?.message === 'User not found') {
+      return res.status(401).json({ detail: error.message });
+    }
     return res.status(500).json({ detail: 'Something went wrong. Please try again later.' });
   }
 });
