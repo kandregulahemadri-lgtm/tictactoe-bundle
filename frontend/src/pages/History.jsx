@@ -5,15 +5,39 @@ import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, Trophy, Users } from "lucide-react";
 
 export default function History() {
-  const { user } = useAuth();
+  const { user, authAttempted } = useAuth();
   const [matches, setMatches] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    api.get("/matches").then((r) => setMatches(r.data)).catch(() => setMatches([]));
+    if (!user) {
+      setMatches([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadMatches = async () => {
+      try {
+        const response = await api.get("/matches");
+        if (isMounted) {
+          setMatches(response.data || []);
+          setLoadError(false);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setLoadError(true);
+          setMatches([]);
+        }
+      }
+    };
+
+    loadMatches();
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
-  if (user === null) return null;
+  if (user === null && !authAttempted) return null;
   if (user === false) {
     return (
       <div className="px-6 pt-6 pb-24 slide-up">
@@ -30,13 +54,15 @@ export default function History() {
         <ArrowLeft size={16} className="mr-1" /> Back
       </Link>
       <h1 className="font-display text-4xl font-black mt-5">Match history</h1>
-      <p className="text-[#1A1C1E]/70 mt-1.5">Your last {matches?.length ?? 0} game{(matches?.length ?? 0) === 1 ? "" : "s"}.</p>
+      <p className="text-[#1A1C1E]/70 mt-1.5">
+        {loadError ? "We couldn’t load your history right now." : `Your last ${matches?.length ?? 0} game${(matches?.length ?? 0) === 1 ? "" : "s"}.`}
+      </p>
 
       <div className="mt-6 space-y-2.5" data-testid="history-list">
         {matches === null && (
           <div className="text-sm text-[#6C7278]">Loading…</div>
         )}
-        {matches !== null && matches.length === 0 && (
+        {matches !== null && matches.length === 0 && !loadError && (
           <div className="rounded-2xl glass p-6 text-center">
             <Users className="mx-auto text-[#6C7278]" size={20} />
             <div className="mt-2 text-sm text-[#6C7278]">No matches yet. Play one!</div>

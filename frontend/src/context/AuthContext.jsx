@@ -6,13 +6,33 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   // null = checking, false = anonymous, object = user
   const [user, setUser] = useState(null);
+  const [authAttempted, setAuthAttempted] = useState(false);
 
   const fetchMe = useCallback(async () => {
-    try {
+    const fetchCurrentUser = async () => {
       const { data } = await api.get("/auth/me");
       setUser(data);
-    } catch (_) {
+      return data;
+    };
+
+    try {
+      const currentUser = await fetchCurrentUser();
+      setAuthAttempted(true);
+      return currentUser;
+    } catch (error) {
+      if (error?.response?.status === 401) {
+        try {
+          await api.post("/auth/refresh");
+          const refreshedUser = await fetchCurrentUser();
+          setAuthAttempted(true);
+          return refreshedUser;
+        } catch (_) {
+          // ignore and fall through to anonymous state
+        }
+      }
+      setAuthAttempted(true);
       setUser(false);
+      return false;
     }
   }, []);
 
@@ -51,7 +71,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, refresh: fetchMe }}>
+    <AuthContext.Provider value={{ user, authAttempted, login, register, logout, updateProfile, refresh: fetchMe }}>
       {children}
     </AuthContext.Provider>
   );
